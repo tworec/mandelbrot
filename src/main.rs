@@ -28,6 +28,39 @@ fn mandelbrot(c: Complex<f64>, max_iter: usize) -> usize {
     n
 }
 
+struct Rect {
+    startx: u32,
+    starty: u32,
+    endx: u32,
+    endy: u32
+}
+
+
+struct ExecuteParams {
+    s: Complex<f64>,
+    scale: Complex<f64>,
+    max_iter: usize,
+    area: Rect
+}
+
+fn exec(params: &ExecuteParams) -> Vec<u8> {
+    let data = (params.area.starty..params.area.endy)
+        .into_iter()
+        .flat_map(|y| {
+            let im = params.scale.im * y as f64;
+            (params.area.startx..params.area.endx).into_iter().map(move |x| {
+                let step = Complex::new(params.scale.re * x as f64, im);
+                let it = mandelbrot(params.s + step, params.max_iter);
+                //            println!("{}x{}: it = {}", y, x, it);
+                (params.max_iter as f64 * 255f64 / it as f64) as u8
+            })
+        })
+        .collect::<Vec<u8>>();
+
+    return data
+}
+
+
 fn main() {
     let opt = Opt::from_args();
 
@@ -37,19 +70,10 @@ fn main() {
     let delta = e - s;
     let scal = Complex::new(delta.re / size.re, delta.im / size.im);
 
-    let data = (0..opt.height)
-        .into_iter()
-        .flat_map(|y| {
-            let im = scal.im * y as f64;
-            let opt = opt.clone();
-            (0..opt.width).into_iter().map(move |x| {
-                let step = Complex::new(scal.re * x as f64, im);
-                let it = mandelbrot(s + step, opt.max_iter);
-                //            println!("{}x{}: it = {}", y, x, it);
-                (opt.max_iter as f64 * 255f64 / it as f64) as u8
-            })
-        })
-        .collect::<Vec<u8>>();
+    let area = Rect{ startx: 0, starty: 0, endx: opt.width, endy: opt.height};
+    let params = ExecuteParams{ s, scale: scal, max_iter: opt.max_iter, area };
+
+    let data = exec(&params);
 
     let path = Path::new("out.png");
     let display = path.display();
