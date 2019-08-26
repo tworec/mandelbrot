@@ -1,2 +1,9 @@
 /target
 **/*.rs.bk
+
+# Outputs
+out.png
+reference-out.png
+
+# IDE
+.idea/
