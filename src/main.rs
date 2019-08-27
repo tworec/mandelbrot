@@ -1,7 +1,8 @@
 use std::error::Error;
 use std::fs::File;
+use std::fs;
 use std::io::BufWriter;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 
 use num_complex::Complex;
 use structopt::*;
@@ -17,6 +18,7 @@ struct MandelbrotParams {
     width: u32,
     height: u32,
     num_subtasks: usize,
+    output_dir: String,
 }
 
 fn mandelbrot(c: Complex<f64>, max_iter: usize) -> usize {
@@ -97,6 +99,8 @@ fn save_file(output: &str, data: &Vec<u8>, width: u32, height: u32) {
     let path = Path::new(output);
     let display = path.display();
 
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+
     let file = match File::create(&path) {
         Err(why) => panic!("couldn't create file {}: {}", display, why.description()),
         Ok(file) => file,
@@ -124,6 +128,7 @@ fn main() {
     let data = merge(partial_results);
 
     // Write result image to file.
-    save_file("out.png", &data, opt.width, opt.height);
-    
+    let output_path = Path::new(&opt.output_dir).join("out.png");
+
+    save_file(output_path.to_str().unwrap(), &data, opt.width, opt.height);
 }
