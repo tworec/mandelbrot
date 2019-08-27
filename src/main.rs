@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fs::File;
 use std::io::BufWriter;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use num_complex::Complex;
 use structopt::*;
@@ -88,6 +88,27 @@ fn merge(partial_results: Vec<Vec<u8>>) -> Vec<u8> {
 }
 
 
+fn save_file(output: &str, data: &Vec<u8>, width: u32, height: u32) {
+
+    if data.len() != (width * height) as usize {
+        panic!("Can't save file. Buffer size doesn't match expected width {} and height {}.", width, height);
+    }
+
+    let path = Path::new(output);
+    let display = path.display();
+
+    let file = match File::create(&path) {
+        Err(why) => panic!("couldn't create file {}: {}", display, why.description()),
+        Ok(file) => file,
+    };
+    let mut encoder = png::Encoder::new(BufWriter::new(file), width, height);
+    encoder.set_color(png::ColorType::Grayscale);
+    encoder.set_depth(png::BitDepth::Eight);
+    let mut writer = encoder.write_header().unwrap();
+
+    writer.write_image_data(data).unwrap();
+}
+
 fn main() {
     let opt = MandelbrotParams::from_args();
 
@@ -103,17 +124,6 @@ fn main() {
     let data = merge(partial_results);
 
     // Write result image to file.
-    let path = Path::new("out.png");
-    let display = path.display();
-
-    let file = match File::create(&path) {
-        Err(why) => panic!("couldn't create file {}: {}", display, why.description()),
-        Ok(file) => file,
-    };
-    let mut encoder = png::Encoder::new(BufWriter::new(file), opt.width, opt.height);
-    encoder.set_color(png::ColorType::Grayscale);
-    encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder.write_header().unwrap();
-
-    writer.write_image_data(&data).unwrap();
+    save_file("out.png", &data, opt.width, opt.height);
+    
 }
