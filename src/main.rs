@@ -104,7 +104,6 @@ fn merge_vecs(partial_results: Vec<Vec<u8>>) -> Vec<u8> {
 }
 
 fn merge(params: &Vec<ExecuteParams>) -> Vec<u8> {
-    // TODO: Load image segments and pass vectors list to merge_vecs.
     let partial_results = params.into_iter().map(|subtask_param|{
         load_file(&subtask_param.output)
     }).collect::<Vec<Vec<u8>>>();
