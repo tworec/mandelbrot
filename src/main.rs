@@ -7,7 +7,7 @@ use num_complex::Complex;
 use structopt::*;
 
 #[derive(Debug, StructOpt, Clone)]
-struct Opt {
+struct MandelbrotParams {
     sx: f64,
     ex: f64,
     sy: f64,
@@ -16,6 +16,7 @@ struct Opt {
     max_iter: usize,
     width: u32,
     height: u32,
+    num_subtasks: usize,
 }
 
 fn mandelbrot(c: Complex<f64>, max_iter: usize) -> usize {
@@ -35,22 +36,44 @@ struct Rect {
     endy: u32
 }
 
-
 struct ExecuteParams {
-    s: Complex<f64>,
-    scale: Complex<f64>,
+    start: Complex<f64>,
+    pixel_step: Complex<f64>,
     max_iter: usize,
     area: Rect
+}
+
+fn split(params: &MandelbrotParams) -> Vec<ExecuteParams> {
+    let s = Complex::new(params.sx, params.sy);
+    let e = Complex::new(params.ex, params.ey);
+    let size = Complex::new(params.width as f64, params.height as f64);
+    let delta = e - s;
+    let scale = Complex::new(delta.re / size.re, delta.im / size.im);
+
+    // Preapre params common for all subtasks. Create zero area to replace in future on per subtasks basis.
+    let area = Rect{ startx: 0, starty: 0, endx: 0, endy: 0};
+    let common_params = ExecuteParams{ start: s, pixel_step: scale, max_iter: params.max_iter, area };
+
+    let mut split_params = Vec::with_capacity(params.num_subtasks);
+    for part in 0..params.num_subtasks {
+        let starty = (part as u32 * params.height) / params.num_subtasks as u32;
+        let endy = ((part as u32 + 1) * params.height) / params.num_subtasks as u32;
+
+        let area = Rect{ startx: 0, starty, endx: params.width, endy};
+        split_params.push(ExecuteParams{area, ..common_params})
+    }
+
+    return split_params;
 }
 
 fn exec(params: &ExecuteParams) -> Vec<u8> {
     let data = (params.area.starty..params.area.endy)
         .into_iter()
         .flat_map(|y| {
-            let im = params.scale.im * y as f64;
+            let im = params.pixel_step.im * y as f64;
             (params.area.startx..params.area.endx).into_iter().map(move |x| {
-                let step = Complex::new(params.scale.re * x as f64, im);
-                let it = mandelbrot(params.s + step, params.max_iter);
+                let step = Complex::new(params.pixel_step.re * x as f64, im);
+                let it = mandelbrot(params.start + step, params.max_iter);
                 //            println!("{}x{}: it = {}", y, x, it);
                 (params.max_iter as f64 * 255f64 / it as f64) as u8
             })
@@ -60,21 +83,26 @@ fn exec(params: &ExecuteParams) -> Vec<u8> {
     return data
 }
 
+fn merge(partial_results: Vec<Vec<u8>>) -> Vec<u8> {
+    partial_results.into_iter().flatten().collect::<Vec<u8>>()
+}
+
 
 fn main() {
-    let opt = Opt::from_args();
+    let opt = MandelbrotParams::from_args();
 
-    let s = Complex::new(opt.sx, opt.sy);
-    let e = Complex::new(opt.ex, opt.ey);
-    let size = Complex::new(opt.width as f64, opt.height as f64);
-    let delta = e - s;
-    let scal = Complex::new(delta.re / size.re, delta.im / size.im);
+    // Split step.
+    let split_params = split(&opt);
 
-    let area = Rect{ startx: 0, starty: 0, endx: opt.width, endy: opt.height};
-    let params = ExecuteParams{ s, scale: scal, max_iter: opt.max_iter, area };
+    // Execute step for all subtasks.
+    let partial_results = split_params.into_iter().map(|subtask_params| {
+        exec(&subtask_params)
+    }).collect::<Vec<Vec<u8>>>();
 
-    let data = exec(&params);
+    // Merge step.
+    let data = merge(partial_results);
 
+    // Write result image to file.
     let path = Path::new("out.png");
     let display = path.display();
 
