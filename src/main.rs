@@ -153,9 +153,9 @@ fn main() {
     let split_params = split(&opt);
 
     // Execute step for all subtasks.
-    let _subtasks_results = split_params.iter().map(|subtask_params| {
-        exec(&subtask_params)
-    }).collect::<Vec<Vec<u8>>>();
+    for subtask_params in split_params.iter() {
+        exec(&subtask_params);
+    }
 
     // Merge step.
     let data = merge(&split_params);
