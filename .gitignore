@@ -4,6 +4,7 @@
 # Outputs
 out.png
 reference-out.png
+results/
 
 # IDE
 .idea/
