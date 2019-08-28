@@ -1,11 +1,15 @@
-use std::error::Error;
 use std::fs::File;
 use std::fs;
-use std::io::BufWriter;
+use std::io::{BufWriter, ErrorKind};
 use std::path::{Path};
 
 use num_complex::Complex;
 use structopt::*;
+
+
+use failure::{Error, Fail};
+
+
 
 #[derive(Debug, StructOpt, Clone)]
 struct MandelbrotParams {
@@ -17,6 +21,7 @@ struct MandelbrotParams {
     max_iter: usize,
     width: u32,
     height: u32,
+
     num_subtasks: usize,
     output_dir: String,
 }
@@ -111,28 +116,39 @@ fn merge(params: &Vec<ExecuteParams>) -> Vec<u8> {
     merge_vecs(partial_results)
 }
 
+#[derive(Debug, Fail)]
+enum SaveFileError {
+    #[fail(display = "Can't save file. Buffer size doesn't match expected width {} and height {}.", width, height)]
+    NotMatchingSize {
+        width: u32,
+        height: u32,
+    },
+    #[fail(display = "Can't find parent")]
+    NoParent,
+}
 
-fn save_file(output: &str, data: &Vec<u8>, width: u32, height: u32) {
+
+
+fn save_file(output: &str, data: &Vec<u8>, width: u32, height: u32) -> Result<(), Error> {
 
     if data.len() != (width * height) as usize {
-        panic!("Can't save file. Buffer size doesn't match expected width {} and height {}.", width, height);
+        return Err(SaveFileError::NotMatchingSize{ width, height })?;
     }
 
     let path = Path::new(output);
     let display = path.display();
 
-    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::create_dir_all(path.parent().ok_or(SaveFileError::NoParent)?)?;
 
-    let file = match File::create(&path) {
-        Err(why) => panic!("couldn't create file {}: {}", display, why.description()),
-        Ok(file) => file,
-    };
+    let file = File::create(&path)?;
+
     let mut encoder = png::Encoder::new(BufWriter::new(file), width, height);
     encoder.set_color(png::ColorType::Grayscale);
     encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder.write_header().unwrap();
+    let mut writer = encoder.write_header()?;
 
-    writer.write_image_data(data).unwrap();
+    writer.write_image_data(data)?;
+    Ok(())
 }
 
 fn load_file(input: &str) -> Vec<u8> {
